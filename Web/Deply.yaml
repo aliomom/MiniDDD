@@ -1,86 +1,81 @@
 ﻿apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mini
   labels:
     app: mini
+  name: mini
+  namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: mini
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
   template:
     metadata:
       labels:
         app: mini
     spec:
       containers:
-        - image: gcr.io/devops-282619/github.com/aliomom/miniddd
+        - env:
+            - name: DefaultConnection
+              value: >-
+                Server=localhost:30002;Database=myapp;User=sa;Password=SA_PASSWORD;MultipleActiveResultSets=true;
+            - name: SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: SA_PASSWORD
+                  name: sqlserver-secret
+          image: gcr.io/devops-282619/github.com/aliomom/miniddd
+          imagePullPolicy: IfNotPresent
           name: miniddd
-          env:
-          - name: DefaultConnection
-            value: "Server=localhost:30002;Database=myapp;User=sa;Password=SA_PASSWORD;MultipleActiveResultSets=true;"
-          - name: SA_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: sqlserver-secret
-                key: SA_PASSWORD
           ports:
             - containerPort: 80
               name: minidddport
-
+              protocol: TCP
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: mini-service
-  namespace: default
-  labels:
-    app: mini
-spec:
-  ports:
-  - protocol: TCP
-    port: 80
-  selector:
-    app: mini
-  type: NodePort
----
-    #Single Service Ingress
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: ingress-miniddd1
-  namespace: default
-spec:
-  backend:
-    serviceName: mini-service
-    servicePort: 80
----
-apiVersion: autoscaling/v2beta2
+apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
   name: autoscaling
+  namespace: default
 spec:
+  maxReplicas: 10
+  metrics:
+    - resource:
+        name: memory
+        targetAverageValue: 100Mi
+      type: Resource
+    - resource:
+        name: cpu
+        targetAverageUtilization: 50
+      type: Resource
+  minReplicas: 1
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: mini
-  minReplicas: 1
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 50
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: AverageValue
-        averageValue: 100Mi
-    
-
-
- 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: mini
+  name: mini-service
+  namespace: default
+spec:
+  clusterIP: 10.31.240.128
+  externalTrafficPolicy: Cluster
+  ports:
+    - nodePort: 32720
+      port: 80
+      protocol: TCP
+      targetPort: 80
+  selector:
+    app: mini
+  sessionAffinity: None
+  type: NodePort

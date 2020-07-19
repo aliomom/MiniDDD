@@ -1,0 +1,86 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mini
+  labels:
+    app: mini
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mini
+  template:
+    metadata:
+      labels:
+        app: mini
+    spec:
+      containers:
+        - image: gcr.io/devops-282619/mini:v1
+          name: miniddd
+          env:
+          - name: DefaultConnection
+            value: "Server=localhost:30002;Database=myapp;User=sa;Password=SA_PASSWORD;MultipleActiveResultSets=true;"
+          - name: SA_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: sqlserver-secret
+                key: SA_PASSWORD
+          ports:
+            - containerPort: 80
+              name: minidddport
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mini-service
+  namespace: default
+  labels:
+    app: mini
+spec:
+  ports:
+  - protocol: TCP
+    port: 80
+  selector:
+    app: mini
+  type: NodePort
+---
+    #Single Service Ingress
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-miniddd1
+  namespace: default
+spec:
+  backend:
+    serviceName: mini-service
+    servicePort: 80
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mini
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: AverageValue
+        averageValue: 100Mi
+    
+
+
+ 

@@ -15,7 +15,8 @@ spec:
         app: mini
     spec:
       containers:
-        - image: gcr.io/devops-282619/mini:v1
+        - image: gcr.io/devops-282619/github.com/aliomom/miniddd
+
           name: miniddd
           env:
           - name: DefaultConnection
